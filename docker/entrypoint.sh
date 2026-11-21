@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 : "${VNC_PASSWORD:=browseforge}"
@@ -5,13 +6,16 @@
 : "${BROWSEFORGE_DOCKER_GPU_MODE:=software}"
 : "${BROWSEFORGE_DOCKER_DISPLAY_WIDTH:=1920}"
 : "${BROWSEFORGE_DOCKER_DISPLAY_HEIGHT:=1080}"
+
 if ! [[ "$BROWSEFORGE_DOCKER_DISPLAY_WIDTH" =~ ^[1-9][0-9]*$ && "$BROWSEFORGE_DOCKER_DISPLAY_HEIGHT" =~ ^[1-9][0-9]*$ ]]; then
   echo "BROWSEFORGE_DOCKER_DISPLAY_WIDTH and BROWSEFORGE_DOCKER_DISPLAY_HEIGHT must be positive integers" >&2
   exit 2
 fi
+
 export BROWSEFORGE_DOCKER_DISPLAY_WIDTH
 export BROWSEFORGE_DOCKER_DISPLAY_HEIGHT
 export BROWSEFORGE_DOCKER_DISPLAY_GEOMETRY="${BROWSEFORGE_DOCKER_DISPLAY_WIDTH}x${BROWSEFORGE_DOCKER_DISPLAY_HEIGHT}"
+
 case "$BROWSEFORGE_DOCKER_GPU_MODE" in
   software|native|passthrough) ;;
   *)
@@ -19,7 +23,9 @@ case "$BROWSEFORGE_DOCKER_GPU_MODE" in
     exit 2
     ;;
 esac
+
 export BROWSEFORGE_DOCKER_GPU_MODE
+
 if [ "$BROWSEFORGE_DOCKER_GPU_MODE" = "software" ]; then
   export LIBGL_ALWAYS_SOFTWARE=1
 else
@@ -28,14 +34,14 @@ fi
 
 mkdir -p /app/profiles /app/data /app/browsers /app/logs /app/backups
 
-# Seed or update host-mounted browser cache from the image so browser engines
-# follow the BrowseForge image version contract instead of drifting silently.
+# Seed or update host-mounted browser cache from the image
 if [ "$BROWSEFORGE_SEED_BROWSERS" = "1" ] && [ -d /opt/browseforge/browsers ]; then
   for engine in camoufox cloakbrowser browseforge-chromium; do
     image_version=""
     current_version=""
     [ -f "/opt/browseforge/browsers/${engine}/.version" ] && image_version="$(cat "/opt/browseforge/browsers/${engine}/.version")"
     [ -f "/app/browsers/${engine}/.version" ] && current_version="$(cat "/app/browsers/${engine}/.version")"
+
     if [ -n "$image_version" ] && [ "$current_version" != "$image_version" ]; then
       echo "Seeding ${engine} into /app/browsers..."
       rm -rf "/app/browsers/${engine}"
@@ -61,9 +67,7 @@ find /app/profiles -name "SingletonSocket" -delete 2>/dev/null
 mkdir -p ~/.vnc
 echo -e "${VNC_PASSWORD}\n${VNC_PASSWORD}\n" | vncpasswd -u user -wr
 
-# Start KasmVNC X server (Basic Auth protects HTTP, VNC protocol uses None).
-# The display geometry defaults to the BrowseForge Chromium native persona
-# screen contract so headed window bounds and Screen API values stay coherent.
+# Start KasmVNC X server
 /usr/bin/Xvnc :1 \
   -geometry "$BROWSEFORGE_DOCKER_DISPLAY_GEOMETRY" \
   -depth 24 \
@@ -84,9 +88,8 @@ sleep 2
 export DISPLAY=:1
 openbox &
 
-# Start BrowseForge. Docker defaults to software GL; set native or passthrough
-# only when the container has a deliberate host GPU path.
-/app/BrowseForge &
+# Start BrowseForge on all network interfaces
+/app/BrowseForge serve --host 0.0.0.0 --port 19280 --no-sandbox --no-open &
 BF_PID=$!
 
 # Wait for ready and show token
@@ -98,7 +101,7 @@ for i in $(seq 1 60); do
     echo "  Dashboard:  http://0.0.0.0:19280"
     echo "  Remote VNC: http://0.0.0.0:6901"
     echo "  VNC User:   user"
-    echo "  VNC Password: set via VNC_PASSWORD (default: browseforge)"
+    echo "  VNC Password: set via VNC_PASSWORD"
     echo "  API Token: $TOKEN"
     echo "========================================="
     break
