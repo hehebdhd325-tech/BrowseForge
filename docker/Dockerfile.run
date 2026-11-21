@@ -1,3 +1,4 @@
+
 FROM ubuntu:24.04
 
 ARG TARGETARCH
@@ -26,7 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libegl1 libgles2 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install KasmVNC (replaces Xvfb + x11vnc + noVNC + websockify)
+# Install KasmVNC
 RUN target_arch="${TARGETARCH:-$(dpkg --print-architecture)}" && \
     case "$target_arch" in \
       amd64) KASMVNC_DEB_ARCH=amd64; KASMVNC_SHA256="$KASMVNC_SHA256_AMD64" ;; \
@@ -42,12 +43,13 @@ RUN target_arch="${TARGETARCH:-$(dpkg --print-architecture)}" && \
 
 WORKDIR /app
 
-# Download the exact BrowseForge release selected by the workflow/build args.
+# Download BrowseForge release
 ARG BROWSEFORGE_RELEASE_BASE_URL=https://github.com/nczz/BrowseForge/releases/download
 ARG BROWSEFORGE_PREINSTALL_BROWSERS=1
 ARG BROWSEFORGE_PREINSTALL_RUNTIMES=camoufox,browseforge-chromium
 ARG BROWSEFORGE_CHROMIUM_RELEASE_BASE_URL
 ENV BROWSEFORGE_CHROMIUM_RELEASE_BASE_URL=${BROWSEFORGE_CHROMIUM_RELEASE_BASE_URL}
+
 RUN test -n "$BROWSEFORGE_VERSION" && \
     target_arch="${TARGETARCH:-$(dpkg --print-architecture)}" && \
     browseforge_arch="$BROWSEFORGE_ARCH" && \
@@ -66,16 +68,14 @@ RUN test -n "$BROWSEFORGE_VERSION" && \
     rm -rf /tmp/bf.zip /tmp/BrowseForge-lite && \
     chmod +x /app/BrowseForge
 
-# Preinstall the Playwright control driver so runtime startup does not depend on
-# downloading playwright-core or Node.js from npm/nodejs.org.
+# Preinstall Playwright control driver
 RUN if /app/BrowseForge --help 2>/dev/null | grep -q "playwright install-driver"; then \
       /app/BrowseForge playwright install-driver; \
     else \
       echo "Skipping Playwright driver preinstall for this BrowseForge binary"; \
     fi
 
-# Newer BrowseForge releases can preinstall browser engines during image build.
-# Older release binaries skip this step so historical builds remain reproducible.
+# Preinstall browser engines
 RUN if [ "$BROWSEFORGE_PREINSTALL_BROWSERS" = "1" ] && /app/BrowseForge --help 2>/dev/null | grep -q "browsers status"; then \
       /app/BrowseForge --base-dir /opt/browseforge browsers install --runtimes "$BROWSEFORGE_PREINSTALL_RUNTIMES"; \
     else \
@@ -84,6 +84,7 @@ RUN if [ "$BROWSEFORGE_PREINSTALL_BROWSERS" = "1" ] && /app/BrowseForge --help 2
 
 EXPOSE 19280 6901
 
+# Copy the root entrypoint.sh
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
