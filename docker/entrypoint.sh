@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 : "${VNC_PASSWORD:=browseforge}"
@@ -84,9 +85,8 @@ sleep 2
 export DISPLAY=:1
 openbox &
 
-# Start BrowseForge. Docker defaults to software GL; set native or passthrough
-# only when the container has a deliberate host GPU path.
-/app/BrowseForge &
+# Start BrowseForge with Dashboard accessible through Railway public networking.
+/app/BrowseForge serve --host 0.0.0.0 --port 19280 --no-sandbox --no-open &
 BF_PID=$!
 
 # Wait for ready and show token
